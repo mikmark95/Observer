@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QLabel, QMessageBox, QComboBox, QMainWindow, QMenuBar, QMenu,
     QSpacerItem, QSizePolicy, QHBoxLayout, QLineEdit
 )
-from PyQt6.QtGui import QFont, QAction
+from PyQt6.QtGui import QFont, QAction, QCursor
 from PyQt6.QtCore import Qt
 from processor import process_zip_to_csv
 from config import APP_VERSION, DEVELOPER_NAME
@@ -15,8 +15,43 @@ from config import APP_VERSION, DEVELOPER_NAME
 class ShpToCsvApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Shapefile to CSV Converter")
-        self.setGeometry(100, 100, 600, 350)
+        self.setWindowTitle("Observer 👁️👁️")
+        self.setGeometry(100, 100, 500, 250)
+        self.setStyleSheet("""
+                           QWidget {
+                               background-color: #374048;
+                               color: white;
+                               font-size: 14px;
+                           }
+
+                           QPushButton {
+                               background-color: #B7BFC8;
+                               color: white;
+                               border-radius: 5px;
+                               padding: 5px;
+                           }
+
+                           QPushButton:hover {
+                               background-color: #81A1C1;
+                           }
+
+                           QLineEdit {
+                               background-color: white;
+                               font-size: 14px;
+                               color: #374048;
+                           }
+
+                           QMenuBar {
+                               background-color: #6F7F90;
+                               font-size: 14px;
+                           }
+                           QMenu::item {
+                               background-color: #6F7F90;  
+                               color: white;  
+                               padding: 5px;  
+                           }
+
+                       """)
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -25,11 +60,11 @@ class ShpToCsvApp(QMainWindow):
         central_widget.setLayout(self.layout)
 
         title = QLabel("Convertitore Shapefile in CSV")
-        title.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+        title.setFont(QFont("Arial", 18, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(title)
 
-        self.layout.addSpacerItem(QSpacerItem(10, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
+        self.layout.addSpacerItem(QSpacerItem(10, 15, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
 
         # Input file selection
         self.input_layout = QHBoxLayout()
@@ -61,7 +96,7 @@ class ShpToCsvApp(QMainWindow):
         self.team_label.setVisible(False)
         self.team_line.setVisible(False)
 
-        # Output folder selection with button on the right
+        # Output folder selection
         self.output_layout = QHBoxLayout()
         self.output_label = QLabel("3. Cartella di salvataggio:")
         self.output_line = QLineEdit()
@@ -76,12 +111,9 @@ class ShpToCsvApp(QMainWindow):
         # Action buttons
         self.action_layout = QHBoxLayout()
         self.convert_button = QPushButton("Converti")
-        self.convert_button.setStyleSheet("padding: 10px; font-weight: bold;")
         self.convert_button.clicked.connect(self.run_process)
-
         self.clear_button = QPushButton("Pulisci campi")
         self.clear_button.clicked.connect(self.clear_fields)
-
         self.action_layout.addStretch()
         self.action_layout.addWidget(self.convert_button)
         self.action_layout.addWidget(self.clear_button)
@@ -147,14 +179,14 @@ class ShpToCsvApp(QMainWindow):
             if not team_name:
                 QMessageBox.warning(self, "Attenzione", "Inserisci il nome della squadra per la modalità EMLID.")
                 return
-            safe_team_name = re.sub(r'[\/:*?"<>|]', '_', team_name)
+            safe_team_name = re.sub(r'[\/\:*?"<>|]', '_', team_name)
             output_path = Path(self.output_folder) / safe_team_name
         else:
             output_path = Path(self.output_folder)
 
         try:
             output_path = output_path.resolve()
-            print(f"Percorso destinazione: {output_path}")  # Debug
+            print(f"Percorso destinazione: {output_path}")
 
             if output_path.exists() and not output_path.is_dir():
                 raise PermissionError(f"Esiste un file con lo stesso nome della cartella: {output_path}")
