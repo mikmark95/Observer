@@ -1,5 +1,7 @@
 import sys
 import os
+import re
+from pathlib import Path
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
     QLabel, QMessageBox, QComboBox, QMainWindow, QMenuBar, QMenu,
@@ -145,15 +147,30 @@ class ShpToCsvApp(QMainWindow):
             if not team_name:
                 QMessageBox.warning(self, "Attenzione", "Inserisci il nome della squadra per la modalità EMLID.")
                 return
-            team_folder = os.path.join(self.output_folder, team_name)
-            os.makedirs(team_folder, exist_ok=True)
-            output_path = os.path.join(team_folder, f"{base_filename}.csv")
+            safe_team_name = re.sub(r'[\/:*?"<>|]', '_', team_name)
+            output_path = Path(self.output_folder) / safe_team_name
         else:
-            output_path = os.path.join(self.output_folder, f"{base_filename}.csv")
+            output_path = Path(self.output_folder)
 
         try:
-            process_zip_to_csv(self.input_file, output_path, mode)
-            QMessageBox.information(self, "Successo", f"CSV salvato in: {output_path}")
+            output_path = output_path.resolve()
+            print(f"Percorso destinazione: {output_path}")  # Debug
+
+            if output_path.exists() and not output_path.is_dir():
+                raise PermissionError(f"Esiste un file con lo stesso nome della cartella: {output_path}")
+
+            os.makedirs(output_path, exist_ok=True)
+
+            if not os.access(output_path, os.W_OK):
+                raise PermissionError(f"Non hai i permessi per scrivere in: {output_path}")
+
+            process_zip_to_csv(self.input_file, str(output_path), mode)
+            QMessageBox.information(self, "Successo", f"File CSV salvati in: {output_path}")
+            if os.name == 'nt':
+                os.startfile(output_path)
+
+        except PermissionError as pe:
+            QMessageBox.critical(self, "Errore di permesso", str(pe))
         except Exception as e:
             QMessageBox.critical(self, "Errore", str(e))
 
