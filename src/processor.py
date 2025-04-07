@@ -5,6 +5,7 @@ import geopandas as gpd
 import tempfile
 import re
 from datetime import datetime
+import fiona
 
 def extract_datetime_from_filename(filename: str) -> datetime:
     match = re.search(r'(\d{4}-\d{2}-\d{2})-(\d{6})', filename)
