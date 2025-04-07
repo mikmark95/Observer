@@ -14,7 +14,7 @@ class ShpToCsvApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Shapefile to CSV Converter")
-        self.setGeometry(100, 100, 600, 300)
+        self.setGeometry(100, 100, 600, 350)
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -45,12 +45,23 @@ class ShpToCsvApp(QMainWindow):
         self.layout.addWidget(self.mode_label)
 
         self.mode_selector = QComboBox()
-        self.mode_selector.addItems(["EMLID", "Ricerca Perdite", "Padania e Chiampo"])
+        self.mode_selector.addItems(["Ricerca Perdite", "Padania e Chiampo", "EMLID"])
+        self.mode_selector.currentTextChanged.connect(self.toggle_team_field)
         self.layout.addWidget(self.mode_selector)
+
+        # Team name field (only for EMLID)
+        self.team_layout = QHBoxLayout()
+        self.team_label = QLabel("Nome squadra:")
+        self.team_line = QLineEdit()
+        self.team_layout.addWidget(self.team_label)
+        self.team_layout.addWidget(self.team_line)
+        self.layout.addLayout(self.team_layout)
+        self.team_label.setVisible(False)
+        self.team_line.setVisible(False)
 
         # Output folder selection with button on the right
         self.output_layout = QHBoxLayout()
-        self.output_label = QLabel("3. Cartella di salvataggio del CSV:")
+        self.output_label = QLabel("3. Cartella di salvataggio:")
         self.output_line = QLineEdit()
         self.output_line.setReadOnly(True)
         self.output_button = QPushButton("Sfoglia")
@@ -81,6 +92,11 @@ class ShpToCsvApp(QMainWindow):
         self.output_folder = ""
         self.input_file = ""
 
+    def toggle_team_field(self, text):
+        is_emlid = text == "EMLID"
+        self.team_label.setVisible(is_emlid)
+        self.team_line.setVisible(is_emlid)
+
     def select_input_file(self):
         zip_path, _ = QFileDialog.getOpenFileName(self, "Seleziona file ZIP", "", "ZIP Files (*.zip)")
         if zip_path:
@@ -98,6 +114,7 @@ class ShpToCsvApp(QMainWindow):
         self.output_folder = ""
         self.input_line.clear()
         self.output_line.clear()
+        self.team_line.clear()
         self.mode_selector.setCurrentIndex(0)
 
     def _create_menu_bar(self):
@@ -122,7 +139,17 @@ class ShpToCsvApp(QMainWindow):
 
         mode = self.mode_selector.currentText()
         base_filename = os.path.splitext(os.path.basename(self.input_file))[0]
-        output_path = os.path.join(self.output_folder, f"{base_filename}.csv")
+
+        if mode == "EMLID":
+            team_name = self.team_line.text().strip()
+            if not team_name:
+                QMessageBox.warning(self, "Attenzione", "Inserisci il nome della squadra per la modalità EMLID.")
+                return
+            team_folder = os.path.join(self.output_folder, team_name)
+            os.makedirs(team_folder, exist_ok=True)
+            output_path = os.path.join(team_folder, f"{base_filename}.csv")
+        else:
+            output_path = os.path.join(self.output_folder, f"{base_filename}.csv")
 
         try:
             process_zip_to_csv(self.input_file, output_path, mode)
