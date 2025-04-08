@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QLabel, QMessageBox, QComboBox, QMainWindow, QMenuBar, QMenu,
     QSpacerItem, QSizePolicy, QHBoxLayout, QLineEdit
 )
-from PyQt6.QtGui import QFont, QAction, QCursor
+from PyQt6.QtGui import QFont, QAction
 from PyQt6.QtCore import Qt
 from processor import process_zip_to_csv
 from config import APP_VERSION, DEVELOPER_NAME
@@ -16,42 +16,46 @@ class ShpToCsvApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Observer 👁️👁️")
-        self.setGeometry(100, 100, 500, 250)
+        self.setGeometry(100, 100, 600, 300)
         self.setStyleSheet("""
-                           QWidget {
-                               background-color: #374048;
-                               color: white;
-                               font-size: 14px;
-                           }
+            QWidget {
+                background-color: #374048;
+                color: white;
+                font-size: 14px;
+            }
 
-                           QPushButton {
-                               background-color: #B7BFC8;
-                               color: white;
-                               border-radius: 5px;
-                               padding: 5px;
-                           }
+            QPushButton {
+                background-color: #B7BFC8;
+                color: white;
+                border-radius: 5px;
+                padding: 5px;
+            }
 
-                           QPushButton:hover {
-                               background-color: #81A1C1;
-                           }
+            QPushButton:hover {
+                background-color: #81A1C1;
+            }
 
-                           QLineEdit {
-                               background-color: white;
-                               font-size: 14px;
-                               color: #374048;
-                           }
+            QLineEdit {
+                background-color: white;
+                font-size: 14px;
+                color: #374048;
+            }
 
-                           QMenuBar {
-                               background-color: #6F7F90;
-                               font-size: 14px;
-                           }
-                           QMenu::item {
-                               background-color: #6F7F90;  
-                               color: white;  
-                               padding: 5px;  
-                           }
+            QComboBox {
+                background-color: white;
+                color: #374048;
+            }
 
-                       """)
+            QMenuBar {
+                background-color: #6F7F90;
+                font-size: 14px;
+            }
+            QMenu::item {
+                background-color: #6F7F90;  
+                color: white;  
+                padding: 5px;  
+            }
+        """)
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -63,10 +67,9 @@ class ShpToCsvApp(QMainWindow):
         title.setFont(QFont("Arial", 18, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(title)
-
         self.layout.addSpacerItem(QSpacerItem(10, 15, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
 
-        # Input file selection
+        # Input file
         self.input_layout = QHBoxLayout()
         self.input_label = QLabel("1. File .zip dello shapefile:")
         self.input_line = QLineEdit()
@@ -78,15 +81,15 @@ class ShpToCsvApp(QMainWindow):
         self.input_layout.addWidget(self.input_button)
         self.layout.addLayout(self.input_layout)
 
+        # Modalità
         self.mode_label = QLabel("2. Seleziona la modalità di esportazione")
         self.layout.addWidget(self.mode_label)
-
         self.mode_selector = QComboBox()
         self.mode_selector.addItems(["Ricerca Perdite", "Padania e Chiampo", "EMLID"])
         self.mode_selector.currentTextChanged.connect(self.toggle_team_field)
         self.layout.addWidget(self.mode_selector)
 
-        # Team name field (only for EMLID)
+        # Nome squadra (solo per EMLID)
         self.team_layout = QHBoxLayout()
         self.team_label = QLabel("Nome squadra:")
         self.team_line = QLineEdit()
@@ -96,7 +99,7 @@ class ShpToCsvApp(QMainWindow):
         self.team_label.setVisible(False)
         self.team_line.setVisible(False)
 
-        # Output folder selection
+        # Output folder
         self.output_layout = QHBoxLayout()
         self.output_label = QLabel("3. Cartella di salvataggio:")
         self.output_line = QLineEdit()
@@ -108,7 +111,16 @@ class ShpToCsvApp(QMainWindow):
         self.output_layout.addWidget(self.output_button)
         self.layout.addLayout(self.output_layout)
 
-        # Action buttons
+        # Formato esportazione
+        self.format_layout = QHBoxLayout()
+        self.format_label = QLabel("4. Formato di esportazione:")
+        self.format_selector = QComboBox()
+        self.format_selector.addItems(["CSV", "Shapefile (.shp)"])
+        self.format_layout.addWidget(self.format_label)
+        self.format_layout.addWidget(self.format_selector)
+        self.layout.addLayout(self.format_layout)
+
+        # Pulsanti azione
         self.action_layout = QHBoxLayout()
         self.convert_button = QPushButton("Converti")
         self.convert_button.clicked.connect(self.run_process)
@@ -150,15 +162,14 @@ class ShpToCsvApp(QMainWindow):
         self.output_line.clear()
         self.team_line.clear()
         self.mode_selector.setCurrentIndex(0)
+        self.format_selector.setCurrentIndex(0)
 
     def _create_menu_bar(self):
         menu_bar = QMenuBar(self)
         self.setMenuBar(menu_bar)
-
         help_menu = QMenu("Info", self)
         about_action = QAction("Sviluppatore", self)
         about_action.triggered.connect(self.show_about)
-
         help_menu.addAction(about_action)
         menu_bar.addMenu(help_menu)
 
@@ -172,6 +183,12 @@ class ShpToCsvApp(QMainWindow):
             return
 
         mode = self.mode_selector.currentText()
+        export_format = self.format_selector.currentText().lower().strip()
+        if export_format == "shapefile (.shp)":
+            export_format = "shp"
+        else:
+            export_format = "csv"
+
         base_filename = os.path.splitext(os.path.basename(self.input_file))[0]
 
         if mode == "EMLID":
@@ -179,25 +196,16 @@ class ShpToCsvApp(QMainWindow):
             if not team_name:
                 QMessageBox.warning(self, "Attenzione", "Inserisci il nome della squadra per la modalità EMLID.")
                 return
-            safe_team_name = re.sub(r'[\/\:*?"<>|]', '_', team_name)
+            safe_team_name = re.sub(r'[\\/\\:*?"<>|]', '_', team_name)
             output_path = Path(self.output_folder) / safe_team_name
         else:
             output_path = Path(self.output_folder)
 
         try:
             output_path = output_path.resolve()
-            print(f"Percorso destinazione: {output_path}")
-
-            if output_path.exists() and not output_path.is_dir():
-                raise PermissionError(f"Esiste un file con lo stesso nome della cartella: {output_path}")
-
             os.makedirs(output_path, exist_ok=True)
-
-            if not os.access(output_path, os.W_OK):
-                raise PermissionError(f"Non hai i permessi per scrivere in: {output_path}")
-
-            process_zip_to_csv(self.input_file, str(output_path), mode)
-            QMessageBox.information(self, "Successo", f"File CSV salvati in: {output_path}")
+            process_zip_to_csv(self.input_file, str(output_path), mode, export_format)
+            QMessageBox.information(self, "Successo", f"File esportati in: {output_path}")
             if os.name == 'nt':
                 os.startfile(output_path)
 
