@@ -480,25 +480,53 @@ def process_zip_to_csv(zip_path: str, output_dir: str, mode: str, export_format:
                 output_file = os.path.join(squadra_dir, f"dati_{day}.{export_format}")
                 save_output(geo_df, output_file, export_format)
 
+
+
         elif mode == "padania e chiampo":
+
             df = gdf.copy()
+
             df['Squadra'] = df['note_ge31'].astype(str).str[0].str.upper()
+
             df['Data e Ora'] = df['nomi foto'].astype(str).apply(extract_datetime_from_filename)
+
             df = df.dropna(subset=['Data e Ora']).sort_values(by='Data e Ora')
+
             df['Data'] = df['Data e Ora'].dt.date.astype(str)
+
             grouped = df.groupby(['Squadra', 'Data'])
+
             for (squadra, day), group in grouped:
                 group = group.sort_values(by='Data e Ora').reset_index(drop=True)
+
                 group['ID'] = group.index + 1
+
                 group['Differenza'] = group['Data e Ora'].diff().fillna(pd.Timedelta(seconds=0)).apply(
-                    lambda x: int(x.total_seconds() / 60))
+
+                    lambda x: int(x.total_seconds() / 60)
+
+                )
+
                 group['geometry'] = gpd.points_from_xy(group['coord_x16'], group['coord_y43'])
-                geo_df = gpd.GeoDataFrame(group, crs='EPSG:4326')
+
+                group = group.rename(columns={'coord_x16': 'Longitude', 'coord_y43': 'Latitude'})
+
+                fields = ['ID', 'Longitude', 'Latitude', 'Squadra', 'Data e Ora', 'Differenza', 'geometry']
+
+                group = group[fields]
+
+                geo_df = gpd.GeoDataFrame(group, geometry='geometry', crs='EPSG:4326')
+
                 safe_squadra = re.sub(r'[\/:*?"<>|]', '_', squadra)
+
                 squadra_dir = os.path.join(output_dir, safe_squadra)
+
                 os.makedirs(squadra_dir, exist_ok=True)
+
                 output_file = os.path.join(squadra_dir, f"dati_{day}.{export_format}")
+
                 save_output(geo_df, output_file, export_format)
 
         else:
+
             raise ValueError(f"Modalità non supportata:")
