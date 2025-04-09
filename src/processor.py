@@ -413,19 +413,38 @@ def process_zip_to_csv(zip_path: str, output_dir: str, mode: str, export_format:
 
         if mode == "emlid":
             df = gdf.copy()
+
+            # Conversione campo data
             df['Data e Ora'] = pd.to_datetime(df['Avg start'], errors='coerce')
-            df = df.sort_values(by='Data e Ora').reset_index(drop=True)
-            df['Data'] = df['Data e Ora'].dt.date.astype(str)
-            grouped = df.groupby('Data')
+            df = df.dropna(subset=['Data e Ora']).sort_values(by='Data e Ora').reset_index(drop=True)
+
+            # Aggiunta campi
+            df['ID'] = df.index + 1
+            df['Differenza'] = df['Data e Ora'].diff().fillna(pd.Timedelta(seconds=0)).apply(
+                lambda x: int(x.total_seconds() / 60)
+            )
+
+            # Crea GeoDataFrame solo con i campi richiesti
+            df['geometry'] = gpd.points_from_xy(df['Longitude'], df['Latitude'])
+            fields = ['ID', 'Longitude', 'Latitude', 'Desc', 'Data e Ora', 'Differenza', 'geometry']
+            geo_df = gpd.GeoDataFrame(df[fields], crs='EPSG:4326')
+
+            # Campo "Data" per raggruppare
+            geo_df['Data'] = geo_df['Data e Ora'].dt.date.astype(str)
+            grouped = geo_df.groupby('Data')
+
             for day, group in grouped:
                 group = group.sort_values(by='Data e Ora').reset_index(drop=True)
                 group['ID'] = group.index + 1
                 group['Differenza'] = group['Data e Ora'].diff().fillna(pd.Timedelta(seconds=0)).apply(
-                    lambda x: int(x.total_seconds() / 60))
-                group['geometry'] = gpd.points_from_xy(group['Longitude'], group['Latitude'])
-                geo_df = gpd.GeoDataFrame(group, crs='EPSG:4326')
+                    lambda x: int(x.total_seconds() / 60)
+                )
+
                 output_file = os.path.join(output_dir, f"dati_{day}.{export_format}")
-                save_output(geo_df, output_file, export_format)
+                save_output(group, output_file, export_format)
+
+
+
 
         elif mode == "ricerca perdite":
             df = gdf.copy()
