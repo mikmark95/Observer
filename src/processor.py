@@ -9,6 +9,64 @@ import folium
 import webbrowser
 from pathlib import Path
 from folium.plugins import Fullscreen
+from bs4 import BeautifulSoup
+
+from bs4 import BeautifulSoup
+import re
+
+def aggiungi_popup_a_html(percorso_input: str):
+    with open(percorso_input, "r", encoding="utf-8") as f:
+        html = f.read()
+
+    soup = BeautifulSoup(html, "html.parser")
+
+    # Trova l'ID della mappa dinamicamente
+    match = re.search(r"var (map_[a-f0-9]+) = L\.map", html)
+    if not match:
+        print(f"⚠️ ID mappa non trovato in: {percorso_input}")
+        return
+    map_id = match.group(1)
+
+    script_js = f"""
+    <script>
+      const markerById = {{}};
+
+      {map_id}.eachLayer(layer => {{
+        if (layer instanceof L.Marker && layer.getTooltip()) {{
+          const tooltipContent = layer.getTooltip().getContent();
+          const match = tooltipContent.match(/ID:\\s*(\\d+)/);
+          if (match) {{
+            const id = match[1];
+            markerById[id] = layer;
+          }}
+        }}
+      }});
+
+      document.querySelectorAll("#data-table tbody tr").forEach(row => {{
+        row.addEventListener("click", () => {{
+          const idCell = row.querySelector("td");
+          if (!idCell) return;
+          const id = idCell.textContent.trim();
+
+          const marker = markerById[id];
+          if (marker) {{
+            marker.openPopup();
+            document.querySelectorAll("#data-table tbody tr").forEach(r => r.classList.remove("table-selected"));
+            row.classList.add("table-selected");
+          }}
+        }});
+      }});
+    </script>
+    """
+
+    if soup.body:
+        soup.body.append(BeautifulSoup(script_js, "html.parser"))
+
+    with open(percorso_input, "w", encoding="utf-8") as f:
+        f.write(str(soup))
+
+    print(f"✅ Popup integrato in: {percorso_input}")
+
 
 
 def extract_datetime_from_filename(filename: str) -> datetime:
@@ -85,7 +143,7 @@ def show_shp_on_map(geo_df: gpd.GeoDataFrame, output_path: Path):
         table_id="data-table"
     )
 
-    # Modifichiamo il template HTML e il JavaScript per accedere correttamente alla mappa
+    # Template HTML con JavaScript migliorato per il centramento sulla mappa
     html_template = """
     <!DOCTYPE html>
     <html>
@@ -187,145 +245,106 @@ def show_shp_on_map(geo_df: gpd.GeoDataFrame, output_path: Path):
             // Dizionario delle coordinate dei marker
             const markers = {{markers_dict}};
 
-            // Creiamo una variabile globale per memorizzare il riferimento alla mappa
-            let mapObject = null;
-            let mapReady = false;
-
-            // Funzione che verifica se la mappa è pronta 
-            function checkMapReady() {
+            // Funzione per trovare l'oggetto mappa nell'iframe
+            function findMapObject() {
                 const iframe = document.querySelector('.map-container iframe');
-                if (iframe && iframe.contentWindow && iframe.contentWindow.L && iframe.contentWindow.L.map) {
-                    try {
-                        // Tentiamo di ottenere la mappa dal document dell'iframe
-                        const container = iframe.contentWindow.document.querySelector('.leaflet-map-pane');
-                        if (container) {
-                            mapObject = iframe.contentWindow;
-                            mapReady = true;
-                            console.log('Mappa pronta e accessibile');
-                            return true;
+                if (!iframe || !iframe.contentWindow) return null;
+
+                try {
+                    // Cerca tutte le variabili globali nell'iframe che potrebbero essere la mappa
+                    for (const key in iframe.contentWindow) {
+                        if (key.startsWith('map_') && 
+                            typeof iframe.contentWindow[key] === 'object' && 
+                            iframe.contentWindow[key].setView) {
+                            return iframe.contentWindow[key];
                         }
-                    } catch (e) {
-                        console.log('Errore nell\'accesso alla mappa:', e);
                     }
+                } catch (e) {
+                    console.error('Errore nella ricerca dell\'oggetto mappa:', e);
                 }
-                return false;
+                return null;
             }
 
-            // Funzione per centrare la mappa su una coordinata
-            function centerMapOnCoords(lat, lng) {
-                if (mapReady && mapObject) {
-                    try {
-                        // Utilizziamo un approccio diverso per accedere alla mappa
-                        const mapInstances = Object.values(mapObject).filter(
-                            obj => obj && typeof obj === 'object' && obj._container
-                        );
-
-                        if (mapInstances.length > 0) {
-                            const map = mapInstances[0];
-                            map.setView([lat, lng], 17);
-                            console.log('Mappa centrata su:', lat, lng);
-                            return true;
-                        }
-                    } catch (e) {
-                        console.error('Errore nel centrare la mappa:', e);
-                    }
-                }
-                return false;
-            }
-
-            // Aggiungiamo una funzione per iniettare uno script nella mappa
-            function injectMapScript() {
-                const iframe = document.querySelector('.map-container iframe');
-                if (iframe && iframe.contentWindow) {
-                    try {
-                        const script = iframe.contentWindow.document.createElement('script');
-                        script.textContent = `
-                            window.focusOnCoordinates = function(lat, lng) {
-                                // Troviamo l'istanza della mappa
-                                const mapInstance = Object.values(window).find(
-                                    obj => obj && typeof obj === 'object' && obj._container
-                                );
-                                if (mapInstance) {
-                                    mapInstance.setView([lat, lng], 17);
-                                    return true;
-                                }
-                                return false;
-                            };
-                        `;
-                        iframe.contentWindow.document.body.appendChild(script);
-                        return true;
-                    } catch (e) {
-                        console.error('Errore nell\'iniezione dello script:', e);
-                    }
-                }
-                return false;
-            }
-
-            // Attesa per il caricamento del DOM
             document.addEventListener('DOMContentLoaded', function() {
-                // Controlliamo periodicamente se la mappa è pronta
-                const mapCheckInterval = setInterval(function() {
-                    if (checkMapReady()) {
-                        clearInterval(mapCheckInterval);
-                        injectMapScript();
-                        setupTableInteraction();
-                    }
-                }, 500);
+                // Attendiamo che l'iframe sia caricato
+                let attempts = 0;
+                const maxAttempts = 20;
 
-                // Timeout di sicurezza dopo 10 secondi
-                setTimeout(function() {
-                    clearInterval(mapCheckInterval);
-                    setupTableInteraction();
-                }, 10000);
-            });
+                const checkInterval = setInterval(function() {
+                    attempts++;
+                    const mapObject = findMapObject();
 
-            function setupTableInteraction() {
-                // Configurazione degli eventi click sulla tabella
-                document.querySelectorAll('#data-table tbody tr').forEach(row => {
-                    row.addEventListener('click', function() {
-                        // ID nella prima colonna
-                        const id = this.cells[0].textContent;
+                    if (mapObject || attempts >= maxAttempts) {
+                        clearInterval(checkInterval);
+                        if (mapObject) {
+                            console.log('Mappa trovata, configurazione eventi tabella');
 
-                        if (markers[id]) {
-                            const [lat, lng] = markers[id];
-                            console.log('Click sulla riga ID:', id, 'Coordinate:', lat, lng);
+                            // Configurazione degli eventi click sulla tabella
+                            document.querySelectorAll('#data-table tbody tr').forEach(row => {
+                                row.addEventListener('click', function() {
+                                    const id = this.cells[0].textContent.trim();
+                                    if (markers[id]) {
+                                        const [lat, lng] = markers[id];
+                                        mapObject.setView([lat, lng], 17);
 
-                            // Prova 1: Usa la funzione globale
-                            let success = false;
+                                        // Evidenziazione riga selezionata
+                                        document.querySelectorAll('#data-table tbody tr').forEach(r => 
+                                            r.classList.remove('table-selected'));
+                                        this.classList.add('table-selected');
+                                    }
+                                });
+                            });
+                        } else {
+                            console.error('Non è stato possibile trovare l\'oggetto mappa dopo', attempts, 'tentativi');
 
+                            // Piano B: prova un approccio alternativo per trovare la mappa
                             const iframe = document.querySelector('.map-container iframe');
-                            if (iframe && iframe.contentWindow && iframe.contentWindow.focusOnCoordinates) {
-                                success = iframe.contentWindow.focusOnCoordinates(lat, lng);
-                            }
-
-                            // Prova 2: Usa la nostra funzione locale
-                            if (!success) {
-                                success = centerMapOnCoords(lat, lng);
-                            }
-
-                            // Prova 3: Ultimo tentativo con approccio diretto
-                            if (!success && iframe && iframe.contentWindow) {
+                            if (iframe && iframe.contentDocument) {
                                 try {
-                                    // Creiamo un evento personalizzato nell'iframe
-                                    const event = new iframe.contentWindow.CustomEvent('centerMap', {
-                                        detail: { lat: lat, lng: lng, zoom: 17 }
+                                    // Inietta uno script nell'iframe che renderà l'oggetto mappa accessibile
+                                    const script = document.createElement('script');
+                                    script.textContent = `
+                                        // Trova tutte le istanze di mappa
+                                        window.mapObjects = [];
+                                        for (const key in window) {
+                                            if (typeof window[key] === 'object' && window[key] && window[key].setView) {
+                                                window.mapObjects.push(window[key]);
+                                            }
+                                        }
+                                        // Esponi una funzione per centrare la mappa
+                                        window.centerMap = function(lat, lng, zoom) {
+                                            if (window.mapObjects && window.mapObjects.length > 0) {
+                                                window.mapObjects[0].setView([lat, lng], zoom || 17);
+                                                return true;
+                                            }
+                                            return false;
+                                        };
+                                    `;
+                                    iframe.contentDocument.body.appendChild(script);
+
+                                    // Configura gli eventi della tabella per utilizzare questa funzione
+                                    document.querySelectorAll('#data-table tbody tr').forEach(row => {
+                                        row.addEventListener('click', function() {
+                                            const id = this.cells[0].textContent.trim();
+                                            if (markers[id] && iframe.contentWindow.centerMap) {
+                                                const [lat, lng] = markers[id];
+                                                iframe.contentWindow.centerMap(lat, lng, 17);
+
+                                                // Evidenziazione riga selezionata
+                                                document.querySelectorAll('#data-table tbody tr').forEach(r => 
+                                                    r.classList.remove('table-selected'));
+                                                this.classList.add('table-selected');
+                                            }
+                                        });
                                     });
-                                    iframe.contentWindow.document.dispatchEvent(event);
                                 } catch (e) {
-                                    console.error('Errore nel dispatch dell\'evento:', e);
+                                    console.error('Anche il piano B è fallito:', e);
                                 }
                             }
-
-                            // Evidenziamo la riga in ogni caso
-                            document.querySelectorAll('#data-table tbody tr').forEach(r => 
-                                r.classList.remove('table-selected'));
-                            this.classList.add('table-selected');
                         }
-                    });
-                });
-
-                console.log('Interazione tabella configurata');
-            }
+                    }
+                }, 500); // Controlla ogni 500ms
+            });
         </script>
     </body>
     </html>
@@ -346,7 +365,8 @@ def show_shp_on_map(geo_df: gpd.GeoDataFrame, output_path: Path):
     with open(html_output_path, "w", encoding="utf-8") as f:
         f.write(html_content)
 
-    webbrowser.open(str(html_output_path))
+    aggiungi_popup_a_html(str(html_output_path))
+    print(f"✅ HTML modificato con popup: {html_output_path}")
 
 
 def process_zip_to_csv(zip_path: str, output_dir: str, mode: str, export_format: str = "csv"):
