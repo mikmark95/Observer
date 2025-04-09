@@ -5,7 +5,7 @@ from pathlib import Path
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
     QLabel, QMessageBox, QComboBox, QMainWindow, QMenuBar, QMenu,
-    QSpacerItem, QSizePolicy, QHBoxLayout, QLineEdit
+    QSpacerItem, QSizePolicy, QHBoxLayout, QLineEdit, QFrame
 )
 from PyQt6.QtGui import QFont, QAction
 from PyQt6.QtCore import Qt
@@ -16,132 +16,134 @@ class ShpToCsvApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Observer 👁️👁️")
-        self.setGeometry(100, 100, 600, 300)
+        self.setGeometry(100, 100, 640, 360)
         self.setStyleSheet("""
             QWidget {
-                background-color: #374048;
-                color: white;
-                font-size: 14px;
+                background-color: #2b2f35;
+                color: #f0f0f0;
+                font-size: 13px;
             }
 
             QPushButton {
-                background-color: #B7BFC8;
+                background-color: #5c7cfa;
                 color: white;
-                border-radius: 5px;
-                padding: 5px;
+                border-radius: 4px;
+                padding: 6px 12px;
             }
 
             QPushButton:hover {
-                background-color: #81A1C1;
+                background-color: #4c6ef5;
             }
 
             QLineEdit {
                 background-color: white;
-                font-size: 14px;
-                color: #374048;
+                color: #2b2f35;
+                padding: 5px;
+                border-radius: 4px;
             }
 
             QComboBox {
                 background-color: white;
-                color: #374048;
+                color: #2b2f35;
+                padding: 5px;
+                border-radius: 4px;
+            }
+
+            QLabel {
+                font-weight: bold;
             }
 
             QMenuBar {
-                background-color: #6F7F90;
-                font-size: 14px;
+                background-color: #3b4252;
+                font-size: 13px;
             }
+
             QMenu::item {
-                background-color: #6F7F90;  
-                color: white;  
-                padding: 5px;  
+                background-color: #3b4252;
+                color: white;
+                padding: 5px;
             }
         """)
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
+        self.layout = QVBoxLayout(central_widget)
+        self.layout.setSpacing(12)
 
-        self.layout = QVBoxLayout()
-        central_widget.setLayout(self.layout)
-
-        title = QLabel("Convertitore Shapefile in CSV")
-        title.setFont(QFont("Arial", 18, QFont.Weight.Bold))
+        title = QLabel("Convertitore Shapefile in CSV / SHP")
+        title.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(title)
-        self.layout.addSpacerItem(QSpacerItem(10, 15, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
 
-        # Input file
-        self.input_layout = QHBoxLayout()
-        self.input_label = QLabel("1. File .zip dello shapefile:")
-        self.input_line = QLineEdit()
-        self.input_line.setReadOnly(True)
-        self.input_button = QPushButton("Sfoglia")
-        self.input_button.clicked.connect(self.select_input_file)
-        self.input_layout.addWidget(self.input_label)
-        self.input_layout.addWidget(self.input_line)
-        self.input_layout.addWidget(self.input_button)
-        self.layout.addLayout(self.input_layout)
+        self._add_line_separator()
 
-        # Modalità
-        self.mode_label = QLabel("2. Seleziona la modalità di esportazione")
-        self.layout.addWidget(self.mode_label)
-        self.mode_selector = QComboBox()
-        self.mode_selector.addItems(["Ricerca Perdite", "Padania e Chiampo", "EMLID"])
-        self.mode_selector.currentTextChanged.connect(self.toggle_team_field)
-        self.layout.addWidget(self.mode_selector)
+        self.input_line = self._add_browsable_row("1. File .zip dello shapefile:", True, self.select_input_file)
+        self.mode_selector = self._add_combo_row("2. Seleziona la modalità di esportazione", ["Ricerca Perdite", "Padania e Chiampo", "EMLID"], self.toggle_team_field)
+        self.team_line = self._add_input_row("3. Nome squadra (solo EMLID):", hide=True)
+        self.output_line = self._add_browsable_row("4. Cartella di salvataggio:", True, self.select_output_folder)
+        self.format_selector = self._add_combo_row("5. Formato di esportazione", ["CSV", "Shapefile (.shp)"])
 
-        # Nome squadra (solo per EMLID)
-        self.team_layout = QHBoxLayout()
-        self.team_label = QLabel("Nome squadra:")
-        self.team_line = QLineEdit()
-        self.team_layout.addWidget(self.team_label)
-        self.team_layout.addWidget(self.team_line)
-        self.layout.addLayout(self.team_layout)
-        self.team_label.setVisible(False)
-        self.team_line.setVisible(False)
+        self._add_line_separator()
 
-        # Output folder
-        self.output_layout = QHBoxLayout()
-        self.output_label = QLabel("3. Cartella di salvataggio:")
-        self.output_line = QLineEdit()
-        self.output_line.setReadOnly(True)
-        self.output_button = QPushButton("Sfoglia")
-        self.output_button.clicked.connect(self.select_output_folder)
-        self.output_layout.addWidget(self.output_label)
-        self.output_layout.addWidget(self.output_line)
-        self.output_layout.addWidget(self.output_button)
-        self.layout.addLayout(self.output_layout)
-
-        # Formato esportazione
-        self.format_layout = QHBoxLayout()
-        self.format_label = QLabel("4. Formato di esportazione:")
-        self.format_selector = QComboBox()
-        self.format_selector.addItems(["CSV", "Shapefile (.shp)"])
-        self.format_layout.addWidget(self.format_label)
-        self.format_layout.addWidget(self.format_selector)
-        self.layout.addLayout(self.format_layout)
-
-        # Pulsanti azione
-        self.action_layout = QHBoxLayout()
+        action_layout = QHBoxLayout()
         self.convert_button = QPushButton("Converti")
         self.convert_button.clicked.connect(self.run_process)
         self.clear_button = QPushButton("Pulisci campi")
         self.clear_button.clicked.connect(self.clear_fields)
-        self.action_layout.addStretch()
-        self.action_layout.addWidget(self.convert_button)
-        self.action_layout.addWidget(self.clear_button)
-        self.layout.addLayout(self.action_layout)
-
-        self.layout.addSpacerItem(QSpacerItem(10, 20, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
+        action_layout.addStretch()
+        action_layout.addWidget(self.convert_button)
+        action_layout.addWidget(self.clear_button)
+        self.layout.addLayout(action_layout)
 
         self._create_menu_bar()
 
         self.output_folder = ""
         self.input_file = ""
 
+    def _add_line_separator(self):
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        self.layout.addWidget(line)
+
+    def _add_input_row(self, label_text, hide=False):
+        layout = QHBoxLayout()
+        label = QLabel(label_text)
+        line_edit = QLineEdit()
+        layout.addWidget(label)
+        layout.addWidget(line_edit)
+        self.layout.addLayout(layout)
+        label.setVisible(not hide)
+        line_edit.setVisible(not hide)
+        return line_edit
+
+    def _add_combo_row(self, label_text, items, callback=None):
+        label = QLabel(label_text)
+        combo = QComboBox()
+        combo.addItems(items)
+        if callback:
+            combo.currentTextChanged.connect(callback)
+        self.layout.addWidget(label)
+        self.layout.addWidget(combo)
+        return combo
+
+    def _add_browsable_row(self, label_text, readonly, browse_action):
+        layout = QHBoxLayout()
+        label = QLabel(label_text)
+        line_edit = QLineEdit()
+        line_edit.setReadOnly(readonly)
+        button = QPushButton("Sfoglia")
+        button.clicked.connect(browse_action)
+        layout.addWidget(label)
+        layout.addWidget(line_edit)
+        layout.addWidget(button)
+        self.layout.addLayout(layout)
+        return line_edit
+
     def toggle_team_field(self, text):
         is_emlid = text == "EMLID"
-        self.team_label.setVisible(is_emlid)
         self.team_line.setVisible(is_emlid)
+        self.layout.itemAt(5).layout().itemAt(0).widget().setVisible(is_emlid)  # Mostra/Nasconde etichetta
 
     def select_input_file(self):
         zip_path, _ = QFileDialog.getOpenFileName(self, "Seleziona file ZIP", "", "ZIP Files (*.zip)")
@@ -208,7 +210,6 @@ class ShpToCsvApp(QMainWindow):
             QMessageBox.information(self, "Successo", f"File esportati in: {output_path}")
             if os.name == 'nt':
                 os.startfile(output_path)
-
         except PermissionError as pe:
             QMessageBox.critical(self, "Errore di permesso", str(pe))
         except Exception as e:
