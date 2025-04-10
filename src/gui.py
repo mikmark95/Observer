@@ -1,6 +1,7 @@
 import sys
 import os
 import re
+import webbrowser
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
@@ -11,6 +12,8 @@ from PyQt6.QtGui import QFont, QAction
 from PyQt6.QtCore import Qt
 from processor import process_zip_to_csv
 from config import versione, autore
+from src.update_checker import check_version
+
 
 class ShpToCsvApp(QMainWindow):
     def __init__(self):
@@ -177,7 +180,13 @@ class ShpToCsvApp(QMainWindow):
 
     def show_about(self):
         QMessageBox.information(self, "Informazioni",
-            f"Sviluppato da: {DEVELOPER_NAME}\nVersione: {APP_VERSION}")
+            f"Sviluppato da: {autore}\nVersione: {versione}")
+
+    def check_update(self):
+        """Chiama il controllo aggiornamenti con il contesto della finestra principale."""
+        check_version(self)
+    def guida_function(self):
+        webbrowser.open_new(r"https://github.com/mikmark95/Observer/blob/main/README.md")
 
     def run_process(self):
         if not self.input_file or not self.output_folder:
@@ -218,5 +227,6 @@ class ShpToCsvApp(QMainWindow):
 def run_app():
     app = QApplication(sys.argv)
     window = ShpToCsvApp()
+    check_version()
     window.show()
     sys.exit(app.exec())
