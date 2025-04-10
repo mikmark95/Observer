@@ -1,3 +1,5 @@
+import sys
+
 import requests
 import webbrowser
 from PyQt6.QtWidgets import QMessageBox
@@ -25,9 +27,10 @@ def ask_update(remote_version, parent=None):
     )
 
     if reply == QMessageBox.StandardButton.Yes:
-        download_url = "https://github.com/mikmark95/file-scanner/releases/latest"
+        download_url = "https://github.com/mikmark95/Observer/releases/latest"
         print(f"Visita questa pagina per scaricare l'ultima versione: {download_url}")
         webbrowser.open(download_url)  # Apre il browser con l'URL di download
+        sys.exit(0)
     else:
         print("L'aggiornamento è stato annullato.")
 
@@ -35,7 +38,7 @@ def ask_update(remote_version, parent=None):
 def check_version(parent=None):
     """Controlla la versione e avvisa l'utente se è disponibile un aggiornamento."""
     current_version = versione
-    repo_url = "https://raw.githubusercontent.com/mikmark95/file-scanner/main/src/config.py"
+    repo_url = "https://raw.githubusercontent.com/mikmark95/Observer/refs/heads/main/src/config.py"
 
     response = requests.get(repo_url)
 
