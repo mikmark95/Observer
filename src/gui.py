@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QFont, QAction
 from PyQt6.QtCore import Qt
 from processor import process_zip_to_csv
-from config import APP_VERSION, DEVELOPER_NAME
+from config import versione, autore
 
 class ShpToCsvApp(QMainWindow):
     def __init__(self):
