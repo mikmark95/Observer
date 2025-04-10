@@ -3,6 +3,11 @@ import os
 import re
 import webbrowser
 from pathlib import Path
+import tempfile
+
+
+import markdown
+import requests
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QFileDialog,
     QLabel, QMessageBox, QComboBox, QMainWindow, QMenuBar, QMenu,
@@ -10,6 +15,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QFont, QAction
 from PyQt6.QtCore import Qt
+# from aiofiles import tempfile
+
 from processor import process_zip_to_csv
 from config import versione, autore
 from src.update_checker import check_version
@@ -174,9 +181,15 @@ class ShpToCsvApp(QMainWindow):
         self.setMenuBar(menu_bar)
         help_menu = QMenu("Info", self)
         about_action = QAction("Sviluppatore", self)
+
+        support_menu = QMenu("Supporto", self)
+        guida_action = support_menu.addAction("Guida")
+        guida_action.triggered.connect(self.guida_function)
+
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
         menu_bar.addMenu(help_menu)
+        menu_bar.addMenu(support_menu)
 
     def show_about(self):
         QMessageBox.information(self, "Informazioni",
@@ -185,8 +198,41 @@ class ShpToCsvApp(QMainWindow):
     def check_update(self):
         """Chiama il controllo aggiornamenti con il contesto della finestra principale."""
         check_version(self)
+
+    import webbrowser
+    import tempfile
+    import requests
+    import markdown
+
     def guida_function(self):
-        webbrowser.open_new(r"https://github.com/mikmark95/Observer/blob/main/README.md")
+        url_raw = "https://raw.githubusercontent.com/mikmark95/Observer/main/README.md"
+
+        try:
+            response = requests.get(url_raw)
+            response.raise_for_status()
+            markdown_content = response.text
+        except requests.RequestException as e:
+            print(f"Errore nel download: {e}")
+            return
+
+        html_content = markdown.markdown(markdown_content)
+        html_full = f"""
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Guida - README</title>
+        </head>
+        <body>
+            {html_content}
+        </body>
+        </html>
+        """
+
+        with tempfile.NamedTemporaryFile('w', delete=False, suffix='.html', encoding='utf-8') as f:
+            f.write(html_full)
+            temp_file_path = f.name
+
+        webbrowser.open_new(temp_file_path)
 
     def run_process(self):
         if not self.input_file or not self.output_folder:
