@@ -19,7 +19,7 @@ from PyQt6.QtCore import Qt
 
 from processor import process_zip_to_csv
 from config import versione, autore
-from src.update_checker import check_version
+from update_checker import check_version
 
 
 class ShpToCsvApp(QMainWindow):
