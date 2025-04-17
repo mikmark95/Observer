@@ -1,0 +1,12 @@
+pyinstaller --noconsole --onefile --name "Observer 2.0" ^
+  --hidden-import=PyQt6.QtWidgets ^
+  --hidden-import=PyQt6.QtGui ^
+  --hidden-import=PyQt6.QtCore ^
+  --hidden-import=geopandas ^
+  --hidden-import=fiona ^
+  --hidden-import=pyproj ^
+  --hidden-import=shapely ^
+  --hidden-import=geopandas._compat ^
+  --add-data "config.py;." ^
+  --icon=../assets/occhio.ico^
+  main.py
